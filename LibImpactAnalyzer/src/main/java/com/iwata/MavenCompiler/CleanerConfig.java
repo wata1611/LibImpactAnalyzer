@@ -7,6 +7,7 @@ public class CleanerConfig {
     public static final int MAX_ITERATIONS = 20;
     public static final String PROJECT_DIR = "C:\\Users\\cyber\\git\\NCDSearch";
     public static final String SRC_DIR = PROJECT_DIR + "\\src";
+    public static final String TEST_DIR = PROJECT_DIR + "\\tests";
     
     /**
      * OSに応じたMavenコマンドを取得
