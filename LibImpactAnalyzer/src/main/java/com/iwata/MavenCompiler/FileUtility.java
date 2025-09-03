@@ -13,25 +13,17 @@ import java.util.stream.Collectors;
 public class FileUtility {
     
     /**
-      プロジェクト内の全Javaファイル数を取得（src + tests）
+      プロジェクト内の全Javaファイル数を取得
      **/
     public static int countAllJavaFiles() {
-        return countJavaFilesInDirectory(CleanerConfig.SRC_DIR) + 
-               countJavaFilesInDirectory(CleanerConfig.TEST_DIR);
-    }
-    
-    /**
-      指定ディレクトリ内のJavaファイル数を取得
-     **/
-    public static int countJavaFilesInDirectory(String directory) {
         try {
-            Path dirPath = Paths.get(directory);
-            if (!Files.exists(dirPath)) {
-                System.out.println("ディレクトリが見つかりません: " + directory);
+            Path srcPath = Paths.get(CleanerConfig.SRC_DIR);
+            if (!Files.exists(srcPath)) {
+                System.out.println("ソースディレクトリが見つかりません: " + CleanerConfig.SRC_DIR);
                 return 0;
             }
 
-            List<Path> javaFiles = Files.walk(dirPath)
+            List<Path> javaFiles = Files.walk(srcPath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".java"))
                 .collect(Collectors.toList());
@@ -44,25 +36,17 @@ public class FileUtility {
     }
     
     /**
-      プロジェクト内の全Javaファイルの総行数を取得（src + tests）
+      プロジェクト内の全Javaファイルの総行数を取得
      **/
     public static int countAllJavaLines() {
-        return countJavaLinesInDirectory(CleanerConfig.SRC_DIR) + 
-               countJavaLinesInDirectory(CleanerConfig.TEST_DIR);
-    }
-    
-    /**
-      指定ディレクトリ内のJavaファイルの総行数を取得
-     **/
-    public static int countJavaLinesInDirectory(String directory) {
         try {
-            Path dirPath = Paths.get(directory);
-            if (!Files.exists(dirPath)) {
-                System.out.println("ディレクトリが見つかりません: " + directory);
+            Path srcPath = Paths.get(CleanerConfig.SRC_DIR);
+            if (!Files.exists(srcPath)) {
+                System.out.println("ソースディレクトリが見つかりません: " + CleanerConfig.SRC_DIR);
                 return 0;
             }
 
-            List<Path> javaFiles = Files.walk(dirPath)
+            List<Path> javaFiles = Files.walk(srcPath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.toString().endsWith(".java"))
                 .collect(Collectors.toList());
@@ -85,35 +69,23 @@ public class FileUtility {
     }
     
     /**
-      プロジェクト内でJavaファイルを検索（src + tests）
+      プロジェクト内でJavaファイルを検索
      **/
     public static String findJavaFile(String fileName) {
-        // まずsrcディレクトリで検索
-        String foundFile = findJavaFileInDirectory(fileName, CleanerConfig.SRC_DIR);
-        if (foundFile != null) {
-            return foundFile;
-        }
-        
-        // 次にtestsディレクトリで検索
-        return findJavaFileInDirectory(fileName, CleanerConfig.TEST_DIR);
-    }
-    
-    /**
-      指定ディレクトリ内でJavaファイルを検索
-     **/
-    public static String findJavaFileInDirectory(String fileName, String directory) {
         try {
-            Path dirPath = Paths.get(directory);
-            if (!Files.exists(dirPath)) {
+            Path srcPath = Paths.get(CleanerConfig.SRC_DIR);
+            if (!Files.exists(srcPath)) {
+                System.out.println("ソースディレクトリが見つかりません: " + CleanerConfig.SRC_DIR);
                 return null;
             }
 
-            List<Path> foundFiles = Files.walk(dirPath)
+            List<Path> foundFiles = Files.walk(srcPath)
                 .filter(Files::isRegularFile)
                 .filter(path -> path.getFileName().toString().equals(fileName))
                 .collect(Collectors.toList());
 
             if (foundFiles.isEmpty()) {
+                System.out.println("ファイルが見つかりません: " + fileName);
                 return null;
             }
 
