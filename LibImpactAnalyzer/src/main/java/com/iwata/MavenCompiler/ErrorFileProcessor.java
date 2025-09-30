@@ -1,3 +1,4 @@
+// ========== ErrorFileProcessor.java ==========
 package com.iwata.MavenCompiler;
 
 import com.iwata.MavenCompiler.CompilationMetrics;
@@ -17,7 +18,7 @@ import java.nio.file.*;
 import java.util.*;
 
 /**
-  エラーファイルの修正処理（メインコードとテストコード分離対応）
+  エラーファイルの修正処理
  **/
 public class ErrorFileProcessor {
     public boolean processErrorFile(File file, ErrorInfo errorInfo, CompilationMetrics metrics) {
@@ -50,6 +51,7 @@ public class ErrorFileProcessor {
                         return pos != null && pos.isValidPosition() && pos.getLine() == lineNum;
                     });
 
+
                     for (CtElement element : targetNodes) {
                         String elementType = element.getClass().getSimpleName();
                         System.out.println("削除対象要素: " + elementType + " - " + element);
@@ -62,11 +64,14 @@ public class ErrorFileProcessor {
                     if (targetNodes.isEmpty()) {
                         modified = handleMissingElement(launcher, model, lineNum, metrics, errorInfo.getFilePath()) || modified;
                     }
+
                 }
+
 
                 // メソッドの本体が空または不完全になった場合の処理
                 modified = fixIncompleteMethods(launcher, model, metrics, errorInfo.getFilePath()) || modified;
             }
+
 
             // import文の処理とファイル書き込み
             modified = processImportsAndSave(launcher, file, errorInfo, metrics, 
@@ -152,7 +157,7 @@ public class ErrorFileProcessor {
     }
     
     private boolean handleMissingElement(Launcher launcher, CtModel model, 
-                                        int lineNum, CompilationMetrics metrics, String filePath) {
+                                        int lineNum, CompilationMetrics metrics) {
         System.out.println("エラー行 " + lineNum + " で要素が見つからないため、メソッドレベルで対応");
         
         for (CtMethod<?> method : model.getElements(e -> e instanceof CtMethod<?>).stream()
@@ -162,21 +167,21 @@ public class ErrorFileProcessor {
             if (methodPos != null && methodPos.isValidPosition()) {
                 int startLine = methodPos.getLine();
                 int endLine = methodPos.getEndLine();
-                // エラー行がメソッド内にあるかチェック
+                //エラー行がメソッド内にあるかチェック
                 if (lineNum >= startLine && lineNum <= endLine) {
-                    // メソッドが戻り値を持つかチェック
+                	//メソッドが戻り値を持つかチェック
                     CtTypeReference<?> returnType = method.getType();
                     if (returnType != null && !returnType.getSimpleName().equals("void")) {
                         CtBlock<?> body = method.getBody();
                         if (body != null) {
-                            // デフォルトのreturn文を追加
+                        	//デフォルトのreturn文を追加
                             CtReturn<Object> returnStmt = launcher.getFactory().Core().createReturn();
                             CtExpression<Object> defaultValue = createDefaultValue(launcher, returnType);
                             returnStmt.setReturnedExpression(defaultValue);
                             body.addStatement(returnStmt);
                             System.out.println("エラー行を含むメソッドにreturn文を追加: " + 
                                              method.getSignature());
-                            metrics.incrementDeletedElements("CtReturn (added)", filePath);
+                            metrics.incrementDeletedElements("CtReturn (added)");
                             return true;
                         }
                     }
@@ -187,7 +192,7 @@ public class ErrorFileProcessor {
     }
     
     private boolean fixIncompleteMethods(Launcher launcher, CtModel model, 
-                                        CompilationMetrics metrics, String filePath) {
+                                        CompilationMetrics metrics) {
         boolean modified = false;
         
         for (CtMethod<?> method : model.getElements(e -> e instanceof CtMethod<?>).stream()
@@ -209,7 +214,7 @@ public class ErrorFileProcessor {
                     }
                     body.addStatement(returnStmt);
                     System.out.println("空のメソッドにデフォルトreturn文を追加: " + method.getSignature());
-                    metrics.incrementDeletedElements("CtReturn (added)", filePath);
+                    metrics.incrementDeletedElements("CtReturn (added)");
                     modified = true;
                 } else {
                     // return文の確認
@@ -223,7 +228,7 @@ public class ErrorFileProcessor {
                         body.addStatement(returnStmt);
                         System.out.println("return文が不足しているメソッドにデフォルトreturn文を追加: " + 
                                          method.getSignature());
-                        metrics.incrementDeletedElements("CtReturn (added)", filePath);
+                        metrics.incrementDeletedElements("CtReturn (added)");
                         modified = true;
                     }
                 }
@@ -252,7 +257,7 @@ public class ErrorFileProcessor {
                     errorInfo.getErrorLines().contains(pos.getLine())) {
                     System.out.println("削除対象import文: " + ctImport);
                     importsToRemove.add(ctImport);
-                    metrics.incrementDeletedElements("CtImport", errorInfo.getFilePath());
+                    metrics.incrementDeletedElements("CtImport");
                     modified = true;
                 }
             }
@@ -267,8 +272,7 @@ public class ErrorFileProcessor {
                 }
                 
                 int deletedLinesCount = FileUtility.calculateDeletedLines(originalContent, result);
-                // ファイルパス情報を渡してメイン/テストを判定
-                metrics.addDeletedLines(deletedLinesCount, errorInfo.getFilePath());
+                metrics.addDeletedLines(deletedLinesCount);
                 System.out.println("削除された行数: " + deletedLinesCount);
             }
         } else {
