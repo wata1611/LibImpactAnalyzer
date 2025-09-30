@@ -25,6 +25,7 @@ public class ErrorFileProcessor {
             System.out.println("\n--- " + errorInfo.getFileName() + " の修正処理開始 ---");
 
             String originalContent = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            boolean isTestFile = errorInfo.getFilePath().contains("\\tests\\");
 
             Launcher launcher = new Launcher();
             launcher.getEnvironment().setNoClasspath(true);
@@ -38,30 +39,34 @@ public class ErrorFileProcessor {
 
             boolean modified = false;
 
-            // エラー行の要素を削除
-            for (int lineNum : errorInfo.getErrorLines()) {
-                List<CtElement> targetNodes = model.getElements(e -> {
-                    SourcePosition pos = e.getPosition();
-                    return pos != null && pos.isValidPosition() && pos.getLine() == lineNum;
-                });
+            if (isTestFile) {
+                // テストコードの場合: エラー行を含むテストメソッドを特定し、本体を削除してAssert.failを挿入
+                modified = handleTestFileErrors(launcher, model, errorInfo, metrics);
+            } else {
+                // メインコードの場合: 従来通りエラー行の要素を削除
+                for (int lineNum : errorInfo.getErrorLines()) {
+                    List<CtElement> targetNodes = model.getElements(e -> {
+                        SourcePosition pos = e.getPosition();
+                        return pos != null && pos.isValidPosition() && pos.getLine() == lineNum;
+                    });
 
-                for (CtElement element : targetNodes) {
-                    String elementType = element.getClass().getSimpleName();
-                    System.out.println("削除対象要素: " + elementType + " - " + element);
-                    element.delete();
-                    // ファイルパス情報を渡してメイン/テストを判定
-                    metrics.incrementDeletedElements(elementType, errorInfo.getFilePath());
-                    modified = true;
+                    for (CtElement element : targetNodes) {
+                        String elementType = element.getClass().getSimpleName();
+                        System.out.println("削除対象要素: " + elementType + " - " + element);
+                        element.delete();
+                        metrics.incrementDeletedElements(elementType, errorInfo.getFilePath());
+                        modified = true;
+                    }
+                    
+                    // エラー行で要素が見つからない場合の処理
+                    if (targetNodes.isEmpty()) {
+                        modified = handleMissingElement(launcher, model, lineNum, metrics, errorInfo.getFilePath()) || modified;
+                    }
                 }
-                
-                // エラー行で要素が見つからない場合の処理
-                if (targetNodes.isEmpty()) {
-                    modified = handleMissingElement(launcher, model, lineNum, metrics, errorInfo.getFilePath()) || modified;
-                }
+
+                // メソッドの本体が空または不完全になった場合の処理
+                modified = fixIncompleteMethods(launcher, model, metrics, errorInfo.getFilePath()) || modified;
             }
-
-            // メソッドの本体が空または不完全になった場合の処理
-            modified = fixIncompleteMethods(launcher, model, metrics, errorInfo.getFilePath()) || modified;
 
             // import文の処理とファイル書き込み
             modified = processImportsAndSave(launcher, file, errorInfo, metrics, 
@@ -75,6 +80,75 @@ public class ErrorFileProcessor {
             e.printStackTrace();
             return false;
         }
+    }
+    
+    /**
+     * テストファイルのエラー処理: エラー行を含むメソッドの本体を削除してAssert.failを挿入
+     * testsディレクトリ内のファイルは全てテストコードとして扱う
+     */
+    private boolean handleTestFileErrors(Launcher launcher, CtModel model, 
+                                        ErrorInfo errorInfo, CompilationMetrics metrics) {
+        boolean modified = false;
+        Set<CtMethod<?>> processedMethods = new HashSet<>();
+        
+        for (int lineNum : errorInfo.getErrorLines()) {
+            // エラー行を含むメソッドを探す
+            for (CtMethod<?> method : model.getElements(e -> e instanceof CtMethod<?>).stream()
+                    .map(e -> (CtMethod<?>) e).toList()) {
+                
+                // すでに処理済みのメソッドはスキップ
+                if (processedMethods.contains(method)) {
+                    continue;
+                }
+                
+                SourcePosition methodPos = method.getPosition();
+                if (methodPos != null && methodPos.isValidPosition()) {
+                    int startLine = methodPos.getLine();
+                    int endLine = methodPos.getEndLine();
+                    
+                    // エラー行がメソッド内にあるかチェック
+                    if (lineNum >= startLine && lineNum <= endLine) {
+                        System.out.println("テストメソッド内エラー検出: " + method.getSimpleName() + 
+                                         " (行 " + startLine + "-" + endLine + ")");
+                        
+                        // メソッド本体を削除
+                        CtBlock<?> body = method.getBody();
+                        if (body != null) {
+                            body.getStatements().clear();
+                            System.out.println("メソッド本体を削除しました: " + method.getSimpleName());
+                        } else {
+                            body = launcher.getFactory().Core().createBlock();
+                            method.setBody(body);
+                        }
+                        
+                        // Assert.fail文を文字列から直接パース
+                        try {
+                            CtStatement failStatement = launcher.getFactory().Code()
+                                .createCodeSnippetStatement(
+                                    "org.junit.Assert.fail(\"[LIB-REMOVED] このテストは削除対象ライブラリ依存のため失敗扱い\")"
+                                );
+                            body.addStatement(failStatement);
+                            System.out.println("Assert.fail文を挿入しました: " + method.getSimpleName());
+                        } catch (Exception e) {
+                            System.out.println("Assert.fail文の挿入に失敗しました: " + e.getMessage());
+                            // フォールバック: 単純なthrow文を挿入
+                            CtStatement throwStatement = launcher.getFactory().Code()
+                                .createCodeSnippetStatement(
+                                    "throw new RuntimeException(\"[LIB-REMOVED] このテストは削除対象ライブラリ依存のため失敗扱い\")"
+                                );
+                            body.addStatement(throwStatement);
+                            System.out.println("代わりにRuntimeExceptionをスローする文を挿入しました: " + method.getSimpleName());
+                        }
+                        
+                        metrics.incrementDeletedElements("TestMethodBody", errorInfo.getFilePath());
+                        processedMethods.add(method);
+                        modified = true;
+                    }
+                }
+            }
+        }
+        
+        return modified;
     }
     
     private boolean handleMissingElement(Launcher launcher, CtModel model, 
