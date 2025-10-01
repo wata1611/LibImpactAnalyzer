@@ -127,6 +127,21 @@ public class MavenCompilationCleaner {
                 System.out.println("失敗: " + testResult.getFailedTests());
                 System.out.println("スキップ: " + testResult.getSkippedTests());
                 System.out.println("通過率: " + String.format("%.1f", testResult.getPassRate()) + "%");
+                
+                // 失敗したテストメソッド名の表示
+                if (!testResult.getLibRemovedTestMethods().isEmpty()) {
+                    System.out.println("\n[LIB-REMOVED] ライブラリ削除により失敗したテストメソッド:");
+                    for (String failedTest : testResult.getLibRemovedTestMethods()) {
+                        System.out.println("  - " + failedTest);
+                    }
+                }
+                
+                if (!testResult.getFailedTestMethods().isEmpty()) {
+                    System.out.println("\n通常の失敗したテストメソッド:");
+                    for (String failedTest : testResult.getFailedTestMethods()) {
+                        System.out.println("  - " + failedTest);
+                    }
+                }
             } catch (Exception e) {
                 System.out.println("テスト実行中にエラーが発生しました: " + e.getMessage());
                 // テストが実行できない場合でも処理を続行
