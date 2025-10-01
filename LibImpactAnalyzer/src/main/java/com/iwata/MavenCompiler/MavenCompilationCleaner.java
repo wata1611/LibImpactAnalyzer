@@ -152,5 +152,9 @@ public class MavenCompilationCleaner {
         
         // 定量化指標を出力（メインコードとテストコード分離）
         metrics.printMetrics();
+        
+        // Excelレポートを生成
+        System.out.println("\n===== Excelレポート生成 =====");
+        ExcelReportGenerator.generateReport(metrics);
     }
 }
