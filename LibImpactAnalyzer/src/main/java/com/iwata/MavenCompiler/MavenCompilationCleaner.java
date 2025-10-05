@@ -12,6 +12,7 @@ import java.util.HashMap;
 
 /**
   Mavenプロジェクトのコンパイルエラーを自動修正するメインクラス
+  修正順序: メインコード完了後 → テストコード
  **/
 public class MavenCompilationCleaner {
     
@@ -49,69 +50,20 @@ public class MavenCompilationCleaner {
         System.out.println("  - srcディレクトリ: " + mainLineCount);
         System.out.println("  - testsディレクトリ: " + testLineCount);
         
-        int iteration = 1;
-        boolean compilationSuccess = false;
-
-        while (iteration <= CleanerConfig.MAX_ITERATIONS) {
-            System.out.println("\n===== ループ " + iteration + " 回目 =====");
-            metrics.setIterationCount(iteration);
-
-            // Maven コンパイル実行（メインコードとテストコード）
-            Map<String, ErrorInfo> mainErrorFiles = compiler.runMavenCompileAndExtractErrors();
-            Map<String, ErrorInfo> testErrorFiles = compiler.runMavenTestCompileAndExtractErrors();
-            
-            // エラーファイルをマージ
-            Map<String, ErrorInfo> allErrorFiles = new HashMap<>();
-            allErrorFiles.putAll(mainErrorFiles);
-            allErrorFiles.putAll(testErrorFiles);
-            
-            if (allErrorFiles.isEmpty()) {
-                System.out.println("コンパイル成功");
-                compilationSuccess = true;
-                break;
-            }
-
-            System.out.println("エラーが見つかったファイル数: " + allErrorFiles.size());
-            System.out.println("  - メインコードのエラー: " + mainErrorFiles.size() + "ファイル");
-            System.out.println("  - テストコードのエラー: " + testErrorFiles.size() + "ファイル");
-            
-            for (ErrorInfo errorInfo : allErrorFiles.values()) {
-                String fileType = errorInfo.getFilePath().contains("\\tests\\") ? "[TEST]" : "[MAIN]";
-                System.out.println("  " + fileType + " " + errorInfo.getFileName() + 
-                                 " (エラー行: " + errorInfo.getErrorLines() + ")");
-            }
-
-            boolean anyModified = false;
-
-            // 各エラーファイルに対して修正処理を実行
-            for (ErrorInfo errorInfo : allErrorFiles.values()) {
-                File file = new File(errorInfo.getFilePath());
-                if (!file.exists()) {
-                    System.out.println("ファイルが見つかりません: " + file.getAbsolutePath());
-                    continue;
-                }
-
-                boolean modified = processor.processErrorFile(file, errorInfo, metrics);
-                if (modified) {
-                    anyModified = true;
-                    // ファイルパスも渡してメイン/テスト判定を可能にする
-                    metrics.addModifiedFile(errorInfo.getFileName(), errorInfo.getFilePath());
-                    String fileType = errorInfo.getFilePath().contains("\\tests\\") ? "[TEST]" : "[MAIN]";
-                    System.out.println("修正完了: " + fileType + " " + errorInfo.getFileName());
-                } else {
-                    String fileType = errorInfo.getFilePath().contains("\\tests\\") ? "[TEST]" : "[MAIN]";
-                    System.out.println("修正すべきノードが見つかりません: " + fileType + " " + errorInfo.getFileName());
-                }
-            }
-
-            if (!anyModified) {
-                System.out.println("どのファイルも修正されませんでした。終了します。");
-                break;
-            }
-
-            iteration++;
-        }
-
+        // フェーズ1: メインコードの修正
+        System.out.println("\n========================================");
+        System.out.println("フェーズ1: メインコードの修正を開始");
+        System.out.println("========================================");
+        boolean mainCodeSuccess = processMainCode();
+        
+        // フェーズ2: テストコードの修正
+        System.out.println("\n========================================");
+        System.out.println("フェーズ2: テストコードの修正を開始");
+        System.out.println("========================================");
+        boolean testCodeSuccess = processTestCode();
+        
+        boolean compilationSuccess = mainCodeSuccess && testCodeSuccess;
+        
         if (compilationSuccess) {
             System.out.println("\n最終的にコンパイル成功");
             
@@ -156,5 +108,128 @@ public class MavenCompilationCleaner {
         // Excelレポートを生成
         System.out.println("\n===== Excelレポート生成 =====");
         ExcelReportGenerator.generateReport(metrics);
+    }
+    
+    /**
+     * フェーズ1: メインコード（srcディレクトリ）の修正処理
+     */
+    private boolean processMainCode() throws Exception {
+        int iteration = 1;
+        boolean mainCodeSuccess = false;
+        
+        while (iteration <= CleanerConfig.MAX_ITERATIONS) {
+            System.out.println("\n===== メインコード修正 - ループ " + iteration + " 回目 =====");
+            metrics.setIterationCount(iteration);
+
+            // メインコードのみコンパイル実行
+            Map<String, ErrorInfo> mainErrorFiles = compiler.runMavenCompileAndExtractErrors();
+            
+            if (mainErrorFiles.isEmpty()) {
+                System.out.println("メインコードのコンパイル成功");
+                mainCodeSuccess = true;
+                break;
+            }
+
+            System.out.println("メインコードのエラーファイル数: " + mainErrorFiles.size());
+            
+            for (ErrorInfo errorInfo : mainErrorFiles.values()) {
+                System.out.println("  [MAIN] " + errorInfo.getFileName() + 
+                                 " (エラー行: " + errorInfo.getErrorLines() + ")");
+            }
+
+            boolean anyModified = false;
+
+            // 各エラーファイルに対して修正処理を実行
+            for (ErrorInfo errorInfo : mainErrorFiles.values()) {
+                File file = new File(errorInfo.getFilePath());
+                if (!file.exists()) {
+                    System.out.println("ファイルが見つかりません: " + file.getAbsolutePath());
+                    continue;
+                }
+
+                boolean modified = processor.processErrorFile(file, errorInfo, metrics);
+                if (modified) {
+                    anyModified = true;
+                    metrics.addModifiedFile(errorInfo.getFileName(), errorInfo.getFilePath());
+                    System.out.println("修正完了: [MAIN] " + errorInfo.getFileName());
+                } else {
+                    System.out.println("修正すべきノードが見つかりません: [MAIN] " + errorInfo.getFileName());
+                }
+            }
+
+            if (!anyModified) {
+                System.out.println("メインコードで修正されたファイルがありませんでした。");
+                break;
+            }
+
+            iteration++;
+        }
+        
+        if (!mainCodeSuccess) {
+            System.out.println("警告: メインコードの修正が完了していません（最大反復回数に到達）");
+        }
+        
+        return mainCodeSuccess;
+    }
+    
+    /**
+     * フェーズ2: テストコード（testsディレクトリ）の修正処理
+     */
+    private boolean processTestCode() throws Exception {
+        int iteration = 1;
+        boolean testCodeSuccess = false;
+        
+        while (iteration <= CleanerConfig.MAX_ITERATIONS) {
+            System.out.println("\n===== テストコード修正 - ループ " + iteration + " 回目 =====");
+
+            // テストコードのみコンパイル実行
+            Map<String, ErrorInfo> testErrorFiles = compiler.runMavenTestCompileAndExtractErrors();
+            
+            if (testErrorFiles.isEmpty()) {
+                System.out.println("テストコードのコンパイル成功");
+                testCodeSuccess = true;
+                break;
+            }
+
+            System.out.println("テストコードのエラーファイル数: " + testErrorFiles.size());
+            
+            for (ErrorInfo errorInfo : testErrorFiles.values()) {
+                System.out.println("  [TEST] " + errorInfo.getFileName() + 
+                                 " (エラー行: " + errorInfo.getErrorLines() + ")");
+            }
+
+            boolean anyModified = false;
+
+            // 各エラーファイルに対して修正処理を実行
+            for (ErrorInfo errorInfo : testErrorFiles.values()) {
+                File file = new File(errorInfo.getFilePath());
+                if (!file.exists()) {
+                    System.out.println("ファイルが見つかりません: " + file.getAbsolutePath());
+                    continue;
+                }
+
+                boolean modified = processor.processErrorFile(file, errorInfo, metrics);
+                if (modified) {
+                    anyModified = true;
+                    metrics.addModifiedFile(errorInfo.getFileName(), errorInfo.getFilePath());
+                    System.out.println("修正完了: [TEST] " + errorInfo.getFileName());
+                } else {
+                    System.out.println("修正すべきノードが見つかりません: [TEST] " + errorInfo.getFileName());
+                }
+            }
+
+            if (!anyModified) {
+                System.out.println("テストコードで修正されたファイルがありませんでした。");
+                break;
+            }
+
+            iteration++;
+        }
+        
+        if (!testCodeSuccess) {
+            System.out.println("警告: テストコードの修正が完了していません（最大反復回数に到達）");
+        }
+        
+        return testCodeSuccess;
     }
 }
