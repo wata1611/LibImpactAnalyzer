@@ -94,21 +94,32 @@ public class MavenCompilationCleaner {
                 System.out.println("総テスト数: " + testResult.getTotalTests());
                 System.out.println("成功: " + testResult.getPassedTests());
                 System.out.println("失敗: " + testResult.getFailedTests());
+                System.out.println("エラー: " + testResult.getErrorTests());
                 System.out.println("スキップ: " + testResult.getSkippedTests());
                 System.out.println("通過率: " + String.format("%.1f", testResult.getPassRate()) + "%");
                 
                 // 失敗したテストメソッド名の表示
                 if (!testResult.getLibRemovedTestMethods().isEmpty()) {
-                    System.out.println("\n[LIB-REMOVED] ライブラリ削除により失敗したテストメソッド:");
+                    System.out.println("\n[LIB-REMOVED] ライブラリ削除により失敗したテストメソッド (" + 
+                                     testResult.getLibRemovedTestMethods().size() + "件):");
                     for (String failedTest : testResult.getLibRemovedTestMethods()) {
                         System.out.println("  - " + failedTest);
                     }
                 }
                 
                 if (!testResult.getFailedTestMethods().isEmpty()) {
-                    System.out.println("\n通常の失敗したテストメソッド:");
+                    System.out.println("\n通常の失敗したテストメソッド (" + 
+                                     testResult.getFailedTestMethods().size() + "件):");
                     for (String failedTest : testResult.getFailedTestMethods()) {
                         System.out.println("  - " + failedTest);
+                    }
+                }
+                
+                if (!testResult.getErrorTestMethods().isEmpty()) {
+                    System.out.println("\nエラーが発生したテストメソッド (" + 
+                                     testResult.getErrorTestMethods().size() + "件):");
+                    for (String errorTest : testResult.getErrorTestMethods()) {
+                        System.out.println("  - " + errorTest);
                     }
                 }
             } catch (Exception e) {

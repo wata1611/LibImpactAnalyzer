@@ -20,8 +20,10 @@ public class MavenCompiler {
         private int totalTests = 0;
         private int passedTests = 0;
         private int failedTests = 0;
+        private int errorTests = 0;  // エラーが発生したテスト数
         private int skippedTests = 0;
         private List<String> failedTestMethods = new ArrayList<>();
+        private List<String> errorTestMethods = new ArrayList<>();  // エラーが発生したテストメソッド
         private List<String> libRemovedTestMethods = new ArrayList<>();
         
         public int getTotalTests() { return totalTests; }
@@ -33,11 +35,17 @@ public class MavenCompiler {
         public int getFailedTests() { return failedTests; }
         public void setFailedTests(int failedTests) { this.failedTests = failedTests; }
         
+        public int getErrorTests() { return errorTests; }
+        public void setErrorTests(int errorTests) { this.errorTests = errorTests; }
+        
         public int getSkippedTests() { return skippedTests; }
         public void setSkippedTests(int skippedTests) { this.skippedTests = skippedTests; }
         
         public List<String> getFailedTestMethods() { return failedTestMethods; }
         public void addFailedTestMethod(String methodName) { this.failedTestMethods.add(methodName); }
+        
+        public List<String> getErrorTestMethods() { return errorTestMethods; }
+        public void addErrorTestMethod(String methodName) { this.errorTestMethods.add(methodName); }
         
         public List<String> getLibRemovedTestMethods() { return libRemovedTestMethods; }
         public void addLibRemovedTestMethod(String methodName) { this.libRemovedTestMethods.add(methodName); }
@@ -102,12 +110,17 @@ public class MavenCompiler {
         // 失敗したテストメソッド名のパターン
         // 例: [ERROR] ncdsearch.comparison.algorithm.NgramTest.testNgramSimilarity -- Time elapsed: 0 s <<< FAILURE!
         Pattern failedTestPattern = Pattern.compile("\\[ERROR\\]\\s+([\\w.]+)\\.([\\w]+)\\s+--\\s+Time elapsed:.*<<<\\s+FAILURE!");
+        // エラーが発生したテストメソッド名のパターン
+        // 例: [ERROR] ncdsearch.comparison.algorithm.NgramTest.testNgramSimilarity -- Time elapsed: 0 s <<< ERROR!
+        Pattern errorTestPattern = Pattern.compile("\\[ERROR\\]\\s+([\\w.]+)\\.([\\w]+)\\s+--\\s+Time elapsed:.*<<<\\s+ERROR!");
         // [LIB-REMOVED]メッセージのパターン
         Pattern libRemovedPattern = Pattern.compile("\\[LIB-REMOVED\\]");
         
         String line;
         String lastFailedTest = null;
+        String lastErrorTest = null;
         boolean nextLineIsLibRemoved = false;
+        boolean isCheckingError = false;
         
         while ((line = reader.readLine()) != null) {
             System.out.println(line);
@@ -121,9 +134,23 @@ public class MavenCompiler {
                 int skipped = Integer.parseInt(summaryMatcher.group(4));
                 
                 result.setTotalTests(testsRun);
-                result.setFailedTests(failures + errors);
+                result.setFailedTests(failures);
+                result.setErrorTests(errors);
                 result.setPassedTests(testsRun - failures - errors - skipped);
                 result.setSkippedTests(skipped);
+            }
+            
+            // エラーが発生したテストメソッド名の解析
+            Matcher errorMatcher = errorTestPattern.matcher(line);
+            if (errorMatcher.find()) {
+                String className = errorMatcher.group(1);
+                String methodName = errorMatcher.group(2);
+                String fullTestName = className + "." + methodName;
+                lastErrorTest = fullTestName;
+                result.addErrorTestMethod(fullTestName);
+                isCheckingError = false;
+                nextLineIsLibRemoved = false;
+                continue;
             }
             
             // 失敗したテストメソッド名の解析
@@ -134,6 +161,7 @@ public class MavenCompiler {
                 String fullTestName = className + "." + methodName;
                 lastFailedTest = fullTestName;
                 nextLineIsLibRemoved = true;
+                isCheckingError = false;
             }
             
             // [LIB-REMOVED]メッセージの検出

@@ -28,8 +28,10 @@ public class CompilationMetrics {
     private int totalTests = 0;
     private int passedTests = 0;
     private int failedTests = 0;
+    private int errorTests = 0;  // エラーが発生したテスト数
     private int skippedTests = 0;
     private List<String> failedTestMethods = new ArrayList<>();
+    private List<String> errorTestMethods = new ArrayList<>();  // エラーが発生したテストメソッド
     private List<String> libRemovedTestMethods = new ArrayList<>();
     
     // 実行時間メトリクス（ナノ秒）
@@ -88,8 +90,10 @@ public class CompilationMetrics {
         this.totalTests = testResult.getTotalTests();
         this.passedTests = testResult.getPassedTests();
         this.failedTests = testResult.getFailedTests();
+        this.errorTests = testResult.getErrorTests();
         this.skippedTests = testResult.getSkippedTests();
         this.failedTestMethods = new ArrayList<>(testResult.getFailedTestMethods());
+        this.errorTestMethods = new ArrayList<>(testResult.getErrorTestMethods());
         this.libRemovedTestMethods = new ArrayList<>(testResult.getLibRemovedTestMethods());
     }
     
@@ -155,25 +159,34 @@ public class CompilationMetrics {
         System.out.println("失敗テスト数: " + failedTests);
         System.out.println("  - [LIB-REMOVED]による失敗: " + libRemovedTestMethods.size());
         System.out.println("  - 通常の失敗: " + failedTestMethods.size());
+        System.out.println("エラーテスト数: " + errorTests);
         System.out.println("スキップテスト数: " + skippedTests);
         System.out.println("テスト通過率: " + String.format("%.1f", getTestPassRate()) + "%");
         
         // 失敗したテストメソッド名の表示
         if (!libRemovedTestMethods.isEmpty()) {
-            System.out.println("\n[LIB-REMOVED] ライブラリ削除により失敗したテストメソッド一覧:");
+            System.out.println("\n[LIB-REMOVED] ライブラリ削除により失敗したテストメソッド一覧 (" + libRemovedTestMethods.size() + "件):");
             for (String failedTest : libRemovedTestMethods) {
                 System.out.println("  - " + failedTest);
             }
         }
         
         if (!failedTestMethods.isEmpty()) {
-            System.out.println("\n通常の失敗したテストメソッド一覧:");
+            System.out.println("\n通常の失敗したテストメソッド一覧 (" + failedTestMethods.size() + "件):");
             for (String failedTest : failedTestMethods) {
                 System.out.println("  - " + failedTest);
             }
         }
         
-        if (libRemovedTestMethods.isEmpty() && failedTestMethods.isEmpty() && totalTests > 0) {
+        if (!errorTestMethods.isEmpty()) {
+            System.out.println("\nエラーが発生したテストメソッド一覧 (" + errorTestMethods.size() + "件):");
+            for (String errorTest : errorTestMethods) {
+                System.out.println("  - " + errorTest);
+            }
+        }
+        
+        if (libRemovedTestMethods.isEmpty() && failedTestMethods.isEmpty() && 
+            errorTestMethods.isEmpty() && totalTests > 0) {
             System.out.println("\n全てのテストが成功しました!");
         }
         
@@ -268,8 +281,10 @@ public class CompilationMetrics {
     public int getTotalTests() { return totalTests; }
     public int getPassedTests() { return passedTests; }
     public int getFailedTests() { return failedTests; }
+    public int getErrorTests() { return errorTests; }
     public int getSkippedTests() { return skippedTests; }
     public List<String> getFailedTestMethods() { return new ArrayList<>(failedTestMethods); }
+    public List<String> getErrorTestMethods() { return new ArrayList<>(errorTestMethods); }
     public List<String> getLibRemovedTestMethods() { return new ArrayList<>(libRemovedTestMethods); }
     
     // 実行時間関連のgetters/setters

@@ -111,9 +111,11 @@ public class ExcelReportGenerator {
         XSSFSheet sheet = workbook.createSheet("テストの影響範囲");
         
         // データ作成
+        int totalTests = metrics.getTotalTests();
         int passedTests = metrics.getPassedTests();
         int libRemovedTests = metrics.getLibRemovedTestMethods().size();
         int normalFailedTests = metrics.getFailedTestMethods().size();
+        int errorTests = metrics.getErrorTests();
         
         // ヘッダー行
         Row headerRow = sheet.createRow(0);
@@ -121,38 +123,52 @@ public class ExcelReportGenerator {
         headerRow.createCell(1).setCellValue("テスト数");
         headerRow.createCell(2).setCellValue("割合(%)");
         
-        // データ行1: 成功
+        // データ行1: テストケースの総数
         Row row1 = sheet.createRow(1);
-        row1.createCell(0).setCellValue("成功したテスト");
-        row1.createCell(1).setCellValue(passedTests);
-        double passedPercent = metrics.getTotalTests() > 0 
-            ? (double) passedTests / metrics.getTotalTests() * 100 : 0.0;
-        row1.createCell(2).setCellValue(passedPercent);
+        row1.createCell(0).setCellValue("テストケースの総数");
+        row1.createCell(1).setCellValue(totalTests);
+        row1.createCell(2).setCellValue(100.0);
         
-        // データ行2: LIB-REMOVED失敗
+        // データ行2: 成功
         Row row2 = sheet.createRow(2);
-        row2.createCell(0).setCellValue("LIB-REMOVED失敗");
-        row2.createCell(1).setCellValue(libRemovedTests);
-        double libRemovedPercent = metrics.getTotalTests() > 0 
-            ? (double) libRemovedTests / metrics.getTotalTests() * 100 : 0.0;
-        row2.createCell(2).setCellValue(libRemovedPercent);
+        row2.createCell(0).setCellValue("成功したテスト");
+        row2.createCell(1).setCellValue(passedTests);
+        double passedPercent = totalTests > 0 
+            ? (double) passedTests / totalTests * 100 : 0.0;
+        row2.createCell(2).setCellValue(passedPercent);
         
-        // データ行3: 通常の失敗
+        // データ行3: LIB-REMOVED失敗
         Row row3 = sheet.createRow(3);
-        row3.createCell(0).setCellValue("通常の失敗");
-        row3.createCell(1).setCellValue(normalFailedTests);
-        double normalFailedPercent = metrics.getTotalTests() > 0 
-            ? (double) normalFailedTests / metrics.getTotalTests() * 100 : 0.0;
-        row3.createCell(2).setCellValue(normalFailedPercent);
+        row3.createCell(0).setCellValue("LIB-REMOVED失敗");
+        row3.createCell(1).setCellValue(libRemovedTests);
+        double libRemovedPercent = totalTests > 0 
+            ? (double) libRemovedTests / totalTests * 100 : 0.0;
+        row3.createCell(2).setCellValue(libRemovedPercent);
+        
+        // データ行4: 通常の失敗
+        Row row4 = sheet.createRow(4);
+        row4.createCell(0).setCellValue("通常の失敗");
+        row4.createCell(1).setCellValue(normalFailedTests);
+        double normalFailedPercent = totalTests > 0 
+            ? (double) normalFailedTests / totalTests * 100 : 0.0;
+        row4.createCell(2).setCellValue(normalFailedPercent);
+        
+        // データ行5: エラー
+        Row row5 = sheet.createRow(5);
+        row5.createCell(0).setCellValue("エラー");
+        row5.createCell(1).setCellValue(errorTests);
+        double errorPercent = totalTests > 0 
+            ? (double) errorTests / totalTests * 100 : 0.0;
+        row5.createCell(2).setCellValue(errorPercent);
         
         // 列幅調整
         sheet.autoSizeColumn(0);
         sheet.autoSizeColumn(1);
         sheet.autoSizeColumn(2);
         
-        // 円グラフ作成
+        // 円グラフ作成（総数は除外して、成功・失敗・エラーのみ表示）
         XSSFDrawing drawing = sheet.createDrawingPatriarch();
-        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 0, 6, 10, 21);
+        XSSFClientAnchor anchor = drawing.createAnchor(0, 0, 0, 0, 0, 8, 10, 23);
         XSSFChart chart = drawing.createChart(anchor);
         chart.setTitleText("テストの影響範囲");
         chart.setTitleOverlay(false);
@@ -160,11 +176,11 @@ public class ExcelReportGenerator {
         XDDFChartLegend legend = chart.getOrAddLegend();
         legend.setPosition(LegendPosition.RIGHT);
         
-        // データソース設定
+        // データソース設定（行2-5: 成功、LIB-REMOVED失敗、通常の失敗、エラー）
         XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromStringCellRange(sheet,
-                new CellRangeAddress(1, 3, 0, 0));
+                new CellRangeAddress(2, 5, 0, 0));
         XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromNumericCellRange(sheet,
-                new CellRangeAddress(1, 3, 1, 1));
+                new CellRangeAddress(2, 5, 1, 1));
         
         // 円グラフ作成
         XDDFChartData data = chart.createData(ChartTypes.PIE, null, null);
@@ -203,7 +219,7 @@ public class ExcelReportGenerator {
         createDataRow(sheet, rowNum++, "反復回数", metrics.getIterationCount() + "回");
         rowNum++;
         
-     // 実行時間情報
+        // 実行時間情報
         Row timeHeader = sheet.createRow(rowNum++);
         Cell timeCell = timeHeader.createCell(0);
         timeCell.setCellValue("実行時間");
@@ -258,6 +274,7 @@ public class ExcelReportGenerator {
         createDataRow(sheet, rowNum++, "  成功テスト数", String.valueOf(metrics.getPassedTests()));
         createDataRow(sheet, rowNum++, "  LIB-REMOVED失敗", String.valueOf(metrics.getLibRemovedTestMethods().size()));
         createDataRow(sheet, rowNum++, "  通常の失敗", String.valueOf(metrics.getFailedTestMethods().size()));
+        createDataRow(sheet, rowNum++, "  エラー", String.valueOf(metrics.getErrorTests()));
         createDataRow(sheet, rowNum++, "  テスト通過率", String.format("%.1f%%", metrics.getTestPassRate()));
         rowNum++;
         
@@ -265,7 +282,7 @@ public class ExcelReportGenerator {
         if (!metrics.getLibRemovedTestMethods().isEmpty()) {
             Row libRemovedHeader = sheet.createRow(rowNum++);
             Cell libRemovedCell = libRemovedHeader.createCell(0);
-            libRemovedCell.setCellValue("LIB-REMOVED失敗テスト一覧");
+            libRemovedCell.setCellValue("LIB-REMOVED失敗テスト一覧 (" + metrics.getLibRemovedTestMethods().size() + "件)");
             libRemovedCell.setCellStyle(headerStyle);
             
             for (String testMethod : metrics.getLibRemovedTestMethods()) {
@@ -277,10 +294,22 @@ public class ExcelReportGenerator {
         if (!metrics.getFailedTestMethods().isEmpty()) {
             Row failedHeader = sheet.createRow(rowNum++);
             Cell failedCell = failedHeader.createCell(0);
-            failedCell.setCellValue("通常失敗テスト一覧");
+            failedCell.setCellValue("通常失敗テスト一覧 (" + metrics.getFailedTestMethods().size() + "件)");
             failedCell.setCellStyle(headerStyle);
             
             for (String testMethod : metrics.getFailedTestMethods()) {
+                createDataRow(sheet, rowNum++, "  ", testMethod);
+            }
+            rowNum++;
+        }
+        
+        if (!metrics.getErrorTestMethods().isEmpty()) {
+            Row errorHeader = sheet.createRow(rowNum++);
+            Cell errorCell = errorHeader.createCell(0);
+            errorCell.setCellValue("エラーが発生したテスト一覧 (" + metrics.getErrorTestMethods().size() + "件)");
+            errorCell.setCellStyle(headerStyle);
+            
+            for (String testMethod : metrics.getErrorTestMethods()) {
                 createDataRow(sheet, rowNum++, "  ", testMethod);
             }
         }
@@ -348,8 +377,6 @@ public class ExcelReportGenerator {
                 } else {
                     dLbls.addNewShowLegendKey().setVal(false);
                 }
-                
-               
                 
                 // データラベルの位置を設定（円グラフの外側に配置）
                 if (!dLbls.isSetDLblPos()) {
