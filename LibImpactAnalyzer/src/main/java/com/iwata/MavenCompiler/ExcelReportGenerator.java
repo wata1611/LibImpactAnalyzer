@@ -203,6 +203,19 @@ public class ExcelReportGenerator {
         createDataRow(sheet, rowNum++, "反復回数", metrics.getIterationCount() + "回");
         rowNum++;
         
+     // 実行時間情報
+        Row timeHeader = sheet.createRow(rowNum++);
+        Cell timeCell = timeHeader.createCell(0);
+        timeCell.setCellValue("実行時間");
+        timeCell.setCellStyle(headerStyle);
+        
+        createDataRow(sheet, rowNum++, "  メインコード削除", metrics.getMainCodeDeletionTimeFormatted());
+        createDataRow(sheet, rowNum++, "  テストコード削除", metrics.getTestCodeDeletionTimeFormatted());
+        createDataRow(sheet, rowNum++, "  全削除処理", metrics.getTotalDeletionTimeFormatted());
+        createDataRow(sheet, rowNum++, "  テスト実行", metrics.getTestExecutionTimeFormatted());
+        createDataRow(sheet, rowNum++, "  全体実行時間", metrics.getTotalExecutionTimeFormatted());
+        rowNum++;
+        
         // メインコード情報
         Row mainCodeHeader = sheet.createRow(rowNum++);
         Cell mainCodeCell = mainCodeHeader.createCell(0);

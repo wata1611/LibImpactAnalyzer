@@ -3,7 +3,7 @@ package com.iwata.MavenCompiler;
 import java.util.*;
 
 /**
-  定量化指標管理クラス（メインコードとテストコード分離対応）
+  定量化指標管理クラス（メインコードとテストコード分離対応、実行時間追加）
  **/
 public class CompilationMetrics {
     private int iterationCount = 0;
@@ -31,6 +31,13 @@ public class CompilationMetrics {
     private int skippedTests = 0;
     private List<String> failedTestMethods = new ArrayList<>();
     private List<String> libRemovedTestMethods = new ArrayList<>();
+    
+    // 実行時間メトリクス（ナノ秒）
+    private long mainCodeDeletionTime = 0;
+    private long testCodeDeletionTime = 0;
+    private long totalDeletionTime = 0;
+    private long testExecutionTime = 0;
+    private long totalExecutionTime = 0;
     
     /**
      * ファイルパスからメインかテストかを判定
@@ -91,6 +98,23 @@ public class CompilationMetrics {
      */
     public double getTestPassRate() {
         return totalTests > 0 ? (double) passedTests / totalTests * 100 : 0.0;
+    }
+    
+    /**
+     * ナノ秒を読みやすい形式に変換
+     */
+    private String formatTime(long nanoSeconds) {
+        double seconds = nanoSeconds / 1_000_000_000.0;
+        
+        if (seconds < 1.0) {
+            return String.format("%.3f 秒 (%.0f ミリ秒)", seconds, nanoSeconds / 1_000_000.0);
+        } else if (seconds < 60.0) {
+            return String.format("%.3f 秒", seconds);
+        } else {
+            long minutes = (long) (seconds / 60);
+            double remainingSeconds = seconds % 60;
+            return String.format("%d 分 %.3f 秒", minutes, remainingSeconds);
+        }
     }
     
     /**
@@ -216,13 +240,11 @@ public class CompilationMetrics {
     // 全体メトリクス（後方互換性のため残す）
     public int getTotalFiles() { return totalMainFiles + totalTestFiles; }
     public void setTotalFiles(int totalFiles) {
-        // 既存のコードとの互換性のため、メイン側に設定
         this.totalMainFiles = totalFiles;
     }
     
     public int getTotalLines() { return totalMainLines + totalTestLines; }
     public void setTotalLines(int totalLines) {
-        // 既存のコードとの互換性のため、メイン側に設定
         this.totalMainLines = totalLines;
     }
     
@@ -234,13 +256,11 @@ public class CompilationMetrics {
     }
     
     public void addModifiedFile(String fileName) {
-        // 後方互換性のため、デフォルトはメインファイルとして扱う
         modifiedMainFiles.add(fileName);
     }
     
     public int getDeletedLines() { return deletedMainLines + deletedTestLines; }
     public void addDeletedLines(int lines) {
-        // 後方互換性のため、デフォルトはメイン側に追加
         deletedMainLines += lines;
     }
     
@@ -251,4 +271,45 @@ public class CompilationMetrics {
     public int getSkippedTests() { return skippedTests; }
     public List<String> getFailedTestMethods() { return new ArrayList<>(failedTestMethods); }
     public List<String> getLibRemovedTestMethods() { return new ArrayList<>(libRemovedTestMethods); }
+    
+    // 実行時間関連のgetters/setters
+    public long getMainCodeDeletionTime() { return mainCodeDeletionTime; }
+    public void setMainCodeDeletionTime(long mainCodeDeletionTime) { 
+        this.mainCodeDeletionTime = mainCodeDeletionTime; 
+    }
+    public String getMainCodeDeletionTimeFormatted() { 
+        return formatTime(mainCodeDeletionTime); 
+    }
+    
+    public long getTestCodeDeletionTime() { return testCodeDeletionTime; }
+    public void setTestCodeDeletionTime(long testCodeDeletionTime) { 
+        this.testCodeDeletionTime = testCodeDeletionTime; 
+    }
+    public String getTestCodeDeletionTimeFormatted() { 
+        return formatTime(testCodeDeletionTime); 
+    }
+    
+    public long getTotalDeletionTime() { return totalDeletionTime; }
+    public void setTotalDeletionTime(long totalDeletionTime) { 
+        this.totalDeletionTime = totalDeletionTime; 
+    }
+    public String getTotalDeletionTimeFormatted() { 
+        return formatTime(totalDeletionTime); 
+    }
+    
+    public long getTestExecutionTime() { return testExecutionTime; }
+    public void setTestExecutionTime(long testExecutionTime) { 
+        this.testExecutionTime = testExecutionTime; 
+    }
+    public String getTestExecutionTimeFormatted() { 
+        return formatTime(testExecutionTime); 
+    }
+    
+    public long getTotalExecutionTime() { return totalExecutionTime; }
+    public void setTotalExecutionTime(long totalExecutionTime) { 
+        this.totalExecutionTime = totalExecutionTime; 
+    }
+    public String getTotalExecutionTimeFormatted() { 
+        return formatTime(totalExecutionTime); 
+    }
 }

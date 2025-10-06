@@ -20,13 +20,6 @@ public class MavenCompilationCleaner {
     private final ErrorFileProcessor processor;
     private final CompilationMetrics metrics;
     
-    // 実行時間計測用
-    private long mainCodeDeletionTime = 0;
-    private long testCodeDeletionTime = 0;
-    private long totalDeletionTime = 0;
-    private long testExecutionTime = 0;
-    private long totalExecutionTime = 0;
-    
     public MavenCompilationCleaner() {
         this.compiler = new MavenCompiler();
         this.processor = new ErrorFileProcessor();
@@ -68,7 +61,8 @@ public class MavenCompilationCleaner {
         long mainCodeStartTime = System.nanoTime();
         boolean mainCodeSuccess = processMainCode();
         long mainCodeEndTime = System.nanoTime();
-        mainCodeDeletionTime = mainCodeEndTime - mainCodeStartTime;
+        long mainCodeDeletionTime = mainCodeEndTime - mainCodeStartTime;
+        metrics.setMainCodeDeletionTime(mainCodeDeletionTime);
         
         // フェーズ2: テストコードの修正
         System.out.println("\n========================================");
@@ -77,10 +71,12 @@ public class MavenCompilationCleaner {
         long testCodeStartTime = System.nanoTime();
         boolean testCodeSuccess = processTestCode();
         long testCodeEndTime = System.nanoTime();
-        testCodeDeletionTime = testCodeEndTime - testCodeStartTime;
+        long testCodeDeletionTime = testCodeEndTime - testCodeStartTime;
+        metrics.setTestCodeDeletionTime(testCodeDeletionTime);
         
         long deletionEndTime = System.nanoTime();
-        totalDeletionTime = deletionEndTime - deletionStartTime;
+        long totalDeletionTime = deletionEndTime - deletionStartTime;
+        metrics.setTotalDeletionTime(totalDeletionTime);
         
         boolean compilationSuccess = mainCodeSuccess && testCodeSuccess;
         
@@ -120,13 +116,15 @@ public class MavenCompilationCleaner {
                 // テストが実行できない場合でも処理を続行
             }
             long testExecEndTime = System.nanoTime();
-            testExecutionTime = testExecEndTime - testExecStartTime;
+            long testExecutionTime = testExecEndTime - testExecStartTime;
+            metrics.setTestExecutionTime(testExecutionTime);
         } else {
             System.out.println("最大回数に到達。未解決のエラーがあります。");
         }
         
         long totalEndTime = System.nanoTime();
-        totalExecutionTime = totalEndTime - totalStartTime;
+        long totalExecutionTime = totalEndTime - totalStartTime;
+        metrics.setTotalExecutionTime(totalExecutionTime);
         
         // 定量化指標を出力（メインコードとテストコード分離）
         metrics.printMetrics();
@@ -144,29 +142,12 @@ public class MavenCompilationCleaner {
      */
     private void printExecutionTimes() {
         System.out.println("\n========== 実行時間計測結果 ==========");
-        System.out.println("1. メインコード削除の実行時間: " + formatTime(mainCodeDeletionTime));
-        System.out.println("2. テストコード削除の実行時間: " + formatTime(testCodeDeletionTime));
-        System.out.println("3. メインコード、テストコード削除の実行時間: " + formatTime(totalDeletionTime));
-        System.out.println("4. テスト実行時間: " + formatTime(testExecutionTime));
-        System.out.println("5. 全体の実行時間: " + formatTime(totalExecutionTime));
+        System.out.println("1. メインコード削除の実行時間: " + metrics.getMainCodeDeletionTimeFormatted());
+        System.out.println("2. テストコード削除の実行時間: " + metrics.getTestCodeDeletionTimeFormatted());
+        System.out.println("3. メインコード、テストコード削除の実行時間: " + metrics.getTotalDeletionTimeFormatted());
+        System.out.println("4. テスト実行時間: " + metrics.getTestExecutionTimeFormatted());
+        System.out.println("5. 全体の実行時間: " + metrics.getTotalExecutionTimeFormatted());
         System.out.println("=====================================");
-    }
-    
-    /**
-     * ナノ秒を読みやすい形式に変換
-     */
-    private String formatTime(long nanoSeconds) {
-        double seconds = nanoSeconds / 1_000_000_000.0;
-        
-        if (seconds < 1.0) {
-            return String.format("%.3f 秒 (%.0f ミリ秒)", seconds, nanoSeconds / 1_000_000.0);
-        } else if (seconds < 60.0) {
-            return String.format("%.3f 秒", seconds);
-        } else {
-            long minutes = (long) (seconds / 60);
-            double remainingSeconds = seconds % 60;
-            return String.format("%d 分 %.3f 秒", minutes, remainingSeconds);
-        }
     }
     
     /**
